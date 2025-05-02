@@ -1,7 +1,7 @@
 // utils.rs
 // Utility functions for timing, logging, and formatting throughout the DS210 project.
 
-use std::time::{Duration, Instant};
+use std::time::{Instant};
 
 /// Measure execution time of a closure `f`, printing the elapsed duration with `label`.
 ///
@@ -13,11 +13,14 @@ use std::time::{Duration, Instant};
 /// - Returns whatever `f()` returns  
 ///
 /// # Examples
-/// ```
-/// let result = measure_time("Compute Avg Path", || {
+/// ```rust,no_run
+/// use ds210_project::graph_analysis; // import your library root
+/// # let graph = graph_analysis::load_facebook_graph(\"data/facebook_combined.txt.gz\").unwrap();
+/// let result = ds210_project::utils::measure_time(\"Compute Avg Path\", || {
 ///     graph_analysis::average_shortest_path(&graph)
 /// });
 /// ```
+///
 pub fn measure_time<F, R>(label: &str, f: F) -> R
 where
     F: FnOnce() -> R,
@@ -41,12 +44,13 @@ where
 /// # Inputs
 /// - `title`: the section title to display  
 ///
-/// # Example
+/// # Examples
+/// ```rust,no_run
+/// use ds210_project::utils::print_section;
+/// print_section(\"Loading Graph\");
 /// ```
-/// print_section("Loading Graph");
-/// ```
+///
 pub fn print_section(title: &str) {
-    // Surround title with separators
     println!("\n=== {} ===", title);
 }
 
@@ -56,12 +60,15 @@ pub fn print_section(title: &str) {
 /// - `x`: value between 0.0 and 1.0 representing the fraction  
 ///
 /// # Outputs
-/// - A `String`, e.g. `\"42.00%\"`  
+/// - A `String`, e.g. `"42.00%"`  
 ///
-/// # Example
+/// # Examples
+/// ```rust
+/// use ds210_project::utils::format_pct;
+/// let pct = format_pct(0.4235);
+/// assert_eq!(pct, \"42.35%\");
 /// ```
-/// let pct = format_pct(0.4235); // \"42.35%\"
-/// ```
+///
 pub fn format_pct(x: f64) -> String {
-    format!("{:.2}%", x * 100.0)            // Multiply by 100 and format
+    format!("{:.2}%", x * 100.0)
 }
