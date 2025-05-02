@@ -14,11 +14,18 @@ use std::time::Instant;
 ///
 /// # Examples
 /// ```rust,no_run
+/// use ds210_project::io::load_facebook_graph;
+/// use ds210_project::utils::measure_time;
 /// use ds210_project::graph_analysis;
-/// # let graph = graph_analysis::load_facebook_graph("data/facebook_combined.txt.gz").unwrap();
-/// let result = ds210_project::utils::measure_time("Compute Avg Path", || {
+///
+/// // Load your graph once
+/// let graph = load_facebook_graph("data/facebook_combined.txt.gz").unwrap();
+///
+/// // Time a sample run of your average‐shortest‐path algorithm
+/// let avg = measure_time("Avg path", || {
 ///     graph_analysis::average_shortest_path(&graph)
 /// });
+/// assert!(avg > 0.0);
 /// ```
 pub fn measure_time<F, R>(label: &str, f: F) -> R
 where
