@@ -4,3 +4,5 @@
 pub mod io;
 pub mod graph_analysis;
 pub mod utils;
+pub mod stats;
+
