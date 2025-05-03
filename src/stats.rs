@@ -1,35 +1,34 @@
 // src/stats.rs
-// Statistical functions for graph metrics such as power-law fitting using MLE.
+// Statistical functions for graph metrics including discrete‐power‐law MLE.
 
 use std::collections::HashMap;
 
-/// Estimate the power-law exponent α via MLE for discrete data k ≥ k_min.
-/// 
-/// Formula (Clauset–Shalizi–Newman):  
+/// Estimate discrete power‐law exponent α̂ via Clauset–Shalizi–Newman MLE:
 ///   α̂ = 1 + n [∑_{i=1..n} ln(k_i / (k_min - 0.5)) ]^{-1}
 ///
 /// # Inputs
-/// - `degree_counts`: map degree k → number of nodes with degree k
-/// - `k_min`: the minimum degree to include in the tail fit (commonly 1)
+/// - `degree_counts`: map degree k → count of nodes with degree k
+/// - `k_min`: inclusive lower bound for degrees in the tail
 ///
-/// # Outputs
-/// - Estimated exponent α̂ (f64)
+/// # Returns
+/// - Estimated α̂
+///
 pub fn mle_power_law_exponent(
     degree_counts: &HashMap<usize, usize>,
     k_min: usize,
 ) -> f64 {
-    // Collect all k_i values (with multiplicity)
-    let mut log_sum = 0.0;
     let mut n = 0.0;
-    for (&k, &count) in degree_counts.iter() {
+    let mut log_sum = 0.0;
+
+    for (&k, &count) in degree_counts {
         if k >= k_min && count > 0 {
             let kf = k as f64;
-            // each occurrence contributes to the sum
-            log_sum += (kf / ((k_min as f64) - 0.5)).ln() * (count as f64);
             n += count as f64;
+            // discrete correction of 0.5
+            log_sum += (kf / ((k_min as f64) - 0.5)).ln() * (count as f64);
         }
     }
-    // MLE estimate
+
+    // According to Clauset et al. (2009) MLE
     1.0 + n / log_sum
 }
-
