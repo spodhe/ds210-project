@@ -1,45 +1,51 @@
+//! Module `io`: load Facebook edge list into a `petgraph::Graph`.
+
 use std::{collections::HashMap, error::Error, fs::File};
 use flate2::read::GzDecoder;
 use csv::ReaderBuilder;
 use petgraph::{Graph, Undirected};
 
-/// Load the Facebook edge list from a gzipped file into an undirected Graph.
-/// Each node ID in the file is mapped to a Graph node index.
+/// Load gzipped space-delimited edge list into an undirected graph.
+///
+/// # Inputs
+/// - `path`: file path to gzipped edge list (u v per line)
+///
+/// # Outputs
+/// - `Ok(Graph<usize, (), Undirected>)`: nodes payload = original ID
+/// - `Err(...)` on I/O or parse errors
+///
+/// # High-level logic
+/// 1. Open & decompress via `GzDecoder`.  
+/// 2. Use CSV reader with space delimiter, no headers.  
+/// 3. Map each original node ID → unique `NodeIndex`.  
+/// 4. Insert edge for each `(u,v)`.
 pub fn load_facebook_graph(
     path: &str
 ) -> Result<Graph<usize, (), Undirected>, Box<dyn Error>> {
-    // Open and decompress the file
-    let file = File::open(path)?;
-    let decoder = GzDecoder::new(file);
+    let file = File::open(path)?;                 // open compressed file
+    let decoder = GzDecoder::new(file);           // wrap in gzip decoder
 
-    // Configure CSV reader for whitespace-delimited, no headers
     let mut reader = ReaderBuilder::new()
         .has_headers(false)
         .delimiter(b' ')
         .from_reader(decoder);
 
-    // Create an undirected graph and a map from node ID to graph index
-    let mut graph = Graph::new_undirected();
+    let mut graph = Graph::<usize, (), Undirected>::new_undirected();
     let mut node_map: HashMap<usize, _> = HashMap::new();
 
-    // Read each record, parse node IDs, add nodes/edges
-    for result in reader.records() {
-        let record = result?;
-        let u: usize = record[0].parse()?;
-        let v: usize = record[1].parse()?;
+    for record in reader.records() {
+        let rec = record?;
+        let u: usize = rec[0].parse()?;
+        let v: usize = rec[1].parse()?;
 
-        // Insert node u if new, else get its index
-        let i = *node_map
-            .entry(u)
+        // Map or insert u
+        let i = *node_map.entry(u)
             .or_insert_with(|| graph.add_node(u));
-
-        // Insert node v if new, else get its index
-        let j = *node_map
-            .entry(v)
+        // Map or insert v
+        let j = *node_map.entry(v)
             .or_insert_with(|| graph.add_node(v));
 
-        // Add an undirected edge between i and j
-        graph.add_edge(i, j, ());
+        graph.add_edge(i, j, ());                // add undirected edge
     }
 
     Ok(graph)

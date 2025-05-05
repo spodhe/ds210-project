@@ -1,38 +1,46 @@
+//! Graph algorithms and metrics: shortest paths, degree distributions,
+//! densest-subgraph, and centralities (closeness & betweenness).
+
 use petgraph::{Graph, Undirected, prelude::NodeIndex};
 use std::collections::{HashSet, VecDeque, HashMap};
 
-/// Average shortest-path length (unweighted) by sampling a few seed nodes.
-/// We only sample up to `sample_size` start nodes to keep runtime O(s·(V+E)),
-/// where s = sample_size, V = node_count, E = edge_count.
+/// Average shortest-path length (unweighted) by sampling up to `sample_size` seeds.
+/// 
+/// # Inputs
+/// - `graph`: undirected graph with `usize` node payloads  
+/// 
+/// # Output
+/// - average geodesic distance over all reachable pairs from sampled seeds  
+/// 
+/// # Logic
+/// For each of up to 5 start nodes: BFS to compute distances in O(V+E), 
+/// accumulate all nonzero finite distances.
 pub fn average_shortest_path(graph: &Graph<usize, (), Undirected>) -> f64 {
     let node_count = graph.node_count();
-    // Limit sample size to avoid running BFS from every node in large graphs
     let sample_size = 5.min(node_count);
 
     let mut total_dist = 0.0;
     let mut total_pairs = 0.0;
 
-    // For each sampled start node, perform a BFS in O(V+E)
     for start in graph.node_indices().take(sample_size) {
         let mut dist = vec![usize::MAX; node_count];
         let mut queue = VecDeque::new();
-        let s_idx = start.index();
-        dist[s_idx] = 0;
+        dist[start.index()] = 0;
         queue.push_back(start);
 
+        // BFS from `start`
         while let Some(u) = queue.pop_front() {
-            let ui = u.index();
+            let du = dist[u.index()];
             for v in graph.neighbors(u) {
                 let vi = v.index();
-                // First time we see v
                 if dist[vi] == usize::MAX {
-                    dist[vi] = dist[ui] + 1;
+                    dist[vi] = du + 1;
                     queue.push_back(v);
                 }
             }
         }
 
-        // Accumulate all finite distances (skip self at distance 0)
+        // Sum all nonzero, finite distances
         for &d in &dist {
             if d > 0 && d < usize::MAX {
                 total_dist += d as f64;
@@ -41,32 +49,31 @@ pub fn average_shortest_path(graph: &Graph<usize, (), Undirected>) -> f64 {
         }
     }
 
-    // Divide total length by number of pairs to get average
     total_dist / total_pairs
 }
 
-/// The result of the densest-subgraph peeling algorithm.
+/// Result of the densest-subgraph peeling algorithm.
 pub struct SubgraphResult {
-    /// The actual node payloads included in the densest subgraph found.
+    /// Node payloads included in the best subgraph
     pub nodes: Vec<usize>,
-    /// Maximum density observed = |E_sub| / |V_sub|.
+    /// maximum observed density = |E_sub|/|V_sub|
     pub density: f64,
 }
 
-/// 2-approximation for the densest subgraph via the “peeling” algorithm.
-/// Each iteration removes the lowest-degree node in O(V·d) time; overall ~O(V²).
+/// 2-approximation for max-density subgraph via peeling.
+/// 
+/// # Logic
+/// Repeatedly compute subgraph density, remove the lowest-degree node,
+/// track the iteration with highest density.
 pub fn densest_subgraph_peel(graph: &Graph<usize, (), Undirected>) -> SubgraphResult {
-    // Track which nodes remain in the current subgraph
     let mut remaining: HashSet<NodeIndex> = graph.node_indices().collect();
     let mut best_density = 0.0;
     let mut best_nodes = Vec::new();
 
-    // Repeat until no nodes remain
     while !remaining.is_empty() {
         let n = remaining.len() as f64;
-
-        // Count edges within 'remaining': O(E_sub)
         let mut edge_count = 0;
+        // count edges internal to `remaining`
         for &u in &remaining {
             for v in graph.neighbors(u) {
                 if remaining.contains(&v) {
@@ -74,20 +81,18 @@ pub fn densest_subgraph_peel(graph: &Graph<usize, (), Undirected>) -> SubgraphRe
                 }
             }
         }
-        edge_count /= 2; // each undirected edge counted twice
+        edge_count /= 2; // undirected double-count
         let density = edge_count as f64 / n;
 
-        // Update best if this density is higher
         if density > best_density {
             best_density = density;
             best_nodes = remaining.iter().map(|&idx| graph[idx]).collect();
         }
 
-        // Find the node with minimum degree in current subgraph – O(V_sub·d)
-        if let Some((min_node, _min_deg)) = remaining
+        // peel off the minimum-degree node
+        if let Some((min_u, _)) = remaining
             .iter()
             .map(|&u| {
-                // Compute degree restricted to remaining nodes
                 let deg = graph
                     .neighbors(u)
                     .filter(|v| remaining.contains(v))
@@ -96,10 +101,8 @@ pub fn densest_subgraph_peel(graph: &Graph<usize, (), Undirected>) -> SubgraphRe
             })
             .min_by_key(|&(_, deg)| deg)
         {
-            // Remove that node and repeat
-            remaining.remove(&min_node);
+            remaining.remove(&min_u);
         } else {
-            // Shouldn’t happen, but break to avoid infinite loop
             break;
         }
     }
@@ -110,51 +113,143 @@ pub fn densest_subgraph_peel(graph: &Graph<usize, (), Undirected>) -> SubgraphRe
     }
 }
 
-/// Compute the 1-hop degree distribution: how many nodes have each degree.
-/// Runs in O(V + E) by visiting each node’s adjacency once.
+/// 1-hop degree distribution: degree → count of nodes.
 pub fn degree_distribution(
-    graph: &Graph<usize, (), Undirected>
+    graph: &Graph<usize, (), Undirected>,
 ) -> HashMap<usize, usize> {
     let mut dist = HashMap::new();
-    for node in graph.node_indices() {
-        let deg = graph.neighbors(node).count(); // O(deg(node))
+    for u in graph.node_indices() {
+        let deg = graph.neighbors(u).count();
         *dist.entry(deg).or_insert(0) += 1;
     }
     dist
 }
 
-/// Compute the 2-hop neighbor count distribution: for each node,
-/// count how many nodes are exactly distance=2 away, then histogram that.
-/// Each BFS is O(V+E), so overall O(V·(V+E))—avoid on very large graphs.
+/// 2-hop neighbor histogram: for each node, count how many nodes are exactly 2 hops away.
 pub fn two_hop_distribution(
-    graph: &Graph<usize, (), Undirected>
+    graph: &Graph<usize, (), Undirected>,
 ) -> HashMap<usize, usize> {
     let node_count = graph.node_count();
     let mut dist = HashMap::new();
 
     for start in graph.node_indices() {
-        // Standard BFS to compute distances
         let mut distances = vec![usize::MAX; node_count];
         let mut queue = VecDeque::new();
-        let s_idx = start.index();
-        distances[s_idx] = 0;
+        distances[start.index()] = 0;
         queue.push_back(start);
 
         while let Some(u) = queue.pop_front() {
-            let ui = u.index();
+            let du = distances[u.index()];
             for v in graph.neighbors(u) {
                 let vi = v.index();
                 if distances[vi] == usize::MAX {
-                    distances[vi] = distances[ui] + 1;
+                    distances[vi] = du + 1;
                     queue.push_back(v);
                 }
             }
         }
 
-        // Count nodes at exactly two hops away
-        let two_hop_count = distances.iter().filter(|&&d| d == 2).count();
-        *dist.entry(two_hop_count).or_insert(0) += 1;
+        let two_hop = distances.iter().filter(|&&d| d == 2).count();
+        *dist.entry(two_hop).or_insert(0) += 1;
     }
 
     dist
 }
+
+/// Compute closeness centrality: C(u) = (N-1) / Σ_v d(u,v).
+/// Returns map from node payload → centrality score.
+pub fn closeness_centrality(
+    graph: &Graph<usize, (), Undirected>,
+) -> HashMap<usize, f64> {
+    let n = graph.node_count() as f64;
+    let mut closeness = HashMap::new();
+
+    for u in graph.node_indices() {
+        let mut dist = vec![usize::MAX; graph.node_count()];
+        let mut queue = VecDeque::new();
+        dist[u.index()] = 0;
+        queue.push_back(u);
+
+        while let Some(v) = queue.pop_front() {
+            let dv = dist[v.index()];
+            for w in graph.neighbors(v) {
+                let wi = w.index();
+                if dist[wi] == usize::MAX {
+                    dist[wi] = dv + 1;
+                    queue.push_back(w);
+                }
+            }
+        }
+
+        let sum_d: usize = dist.iter().filter(|&&d| d > 0 && d < usize::MAX).sum();
+        let c = if sum_d > 0 { (n - 1.0) / (sum_d as f64) } else { 0.0 };
+        closeness.insert(graph[u], c);
+    }
+
+    closeness
+}
+
+/// Compute betweenness centrality (Brandes’ algorithm).
+/// Returns map from node payload → betweenness score.
+pub fn betweenness_centrality(
+    graph: &Graph<usize, (), Undirected>,
+) -> HashMap<usize, f64> {
+    let mut cb: HashMap<NodeIndex, f64> =
+        graph.node_indices().map(|u| (u, 0.0)).collect();
+
+    for s in graph.node_indices() {
+        let mut stack = Vec::new();
+        let mut pred: HashMap<NodeIndex, Vec<NodeIndex>> = HashMap::new();
+        let mut sigma: HashMap<NodeIndex, f64> = HashMap::new();
+        let mut dist: HashMap<NodeIndex, i32> = HashMap::new();
+        let mut queue = VecDeque::new();
+
+        // initialize
+        for v in graph.node_indices() {
+            pred.insert(v, Vec::new());
+            sigma.insert(v, 0.0);
+            dist.insert(v, -1);
+        }
+        sigma.insert(s, 1.0);
+        dist.insert(s, 0);
+        queue.push_back(s);
+
+        // BFS phase
+        while let Some(v) = queue.pop_front() {
+            stack.push(v);
+            let dv = dist[&v];
+            for w in graph.neighbors(v) {
+                if dist[&w] < 0 {
+                    dist.insert(w, dv + 1);
+                    queue.push_back(w);
+                }
+                if dist[&w] == dv + 1 {
+                    let sw = sigma[&w];
+                    sigma.insert(w, sw + sigma[&v]);
+                    pred.get_mut(&w).unwrap().push(v);
+                }
+            }
+        }
+
+        // accumulation phase
+        let mut delta: HashMap<NodeIndex, f64> =
+            graph.node_indices().map(|v| (v, 0.0)).collect();
+        while let Some(w) = stack.pop() {
+            let dw = delta[&w];
+            for &v in &pred[&w] {
+                let c = (sigma[&v] / sigma[&w]) * (1.0 + dw);
+                *delta.get_mut(&v).unwrap() += c;
+            }
+            if w != s {
+                *cb.get_mut(&w).unwrap() += delta[&w];
+            }
+        }
+    }
+
+    // map back to payloads
+    cb.into_iter()
+      .map(|(idx, val)| (graph[idx], val))
+      .collect()
+}
+
+

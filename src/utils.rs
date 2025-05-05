@@ -1,32 +1,16 @@
-// src/utils.rs
-// Utility functions for timing, logging, and formatting throughout the DS210 project.
+//! Module `utils`: timing and logging helpers.
 
 use std::time::Instant;
 
-/// Measure execution time of a closure `f`, printing the elapsed duration with `label`.
+/// Measure execution time of closure `f`, print elapsed with `label`,
+/// and return `f`’s result.
 ///
 /// # Inputs
-/// - `label`: a descriptive name for the timed block  
-/// - `f`: a zero-argument closure whose execution you want to measure  
+/// - `label`: description of timed block
+/// - `f`: zero-arg closure
 ///
 /// # Outputs
-/// - Returns whatever `f()` returns  
-///
-/// # Examples
-/// ```rust,no_run
-/// use ds210_project::io::load_facebook_graph;
-/// use ds210_project::utils::measure_time;
-/// use ds210_project::graph_analysis;
-///
-/// // Load your graph once
-/// let graph = load_facebook_graph("data/facebook_combined.txt.gz").unwrap();
-///
-/// // Time a sample run of your average‐shortest‐path algorithm
-/// let avg = measure_time("Avg path", || {
-///     graph_analysis::average_shortest_path(&graph)
-/// });
-/// assert!(avg > 0.0);
-/// ```
+/// - returns whatever `f()` returns
 pub fn measure_time<F, R>(label: &str, f: F) -> R
 where
     F: FnOnce() -> R,
@@ -34,43 +18,15 @@ where
     let start = Instant::now();
     let result = f();
     let elapsed = start.elapsed();
-    println!(
-        "[{}] completed in {}.{:03} secs",
-        label,
-        elapsed.as_secs(),
-        elapsed.subsec_millis()
-    );
+    println!("[{}] completed in {}.{:03} secs",
+             label, elapsed.as_secs(), elapsed.subsec_millis());
     result
 }
 
-/// Print a formatted section header to console for better log readability.
+/// Print a formatted section header.
 ///
 /// # Inputs
-/// - `title`: the section title to display  
-///
-/// # Examples
-/// ```rust,no_run
-/// use ds210_project::utils::print_section;
-/// print_section("Loading Graph");
-/// ```
+/// - `title`: text to display
 pub fn print_section(title: &str) {
     println!("\n=== {} ===", title);
-}
-
-/// Format a fraction `x` into a percent string with two decimal places.
-///
-/// # Inputs
-/// - `x`: value between 0.0 and 1.0 representing the fraction  
-///
-/// # Outputs
-/// - A `String`, e.g. `"42.00%"`  
-///
-/// # Examples
-/// ```rust
-/// use ds210_project::utils::format_pct;
-/// let pct = format_pct(0.4235);
-/// assert_eq!(pct, "42.35%");
-/// ```
-pub fn format_pct(x: f64) -> String {
-    format!("{:.2}%", x * 100.0)
 }

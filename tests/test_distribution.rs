@@ -1,9 +1,12 @@
+// tests/test_distribution.rs
+// Smoke tests for 1-hop and 2-hop distributions.
+
 use ds210_project::graph_analysis;
 use petgraph::{Graph, Undirected};
 
 #[test]
 fn degree_distribution_path_graph() {
-    // Path 1—2—3: degrees are [1,2,1]
+    // Path 1—2—3 has degrees [1,2,1]
     let mut g = Graph::<usize, (), Undirected>::new_undirected();
     let n1 = g.add_node(0);
     let n2 = g.add_node(1);
@@ -18,7 +21,7 @@ fn degree_distribution_path_graph() {
 
 #[test]
 fn two_hop_distribution_path_graph() {
-    // Path 1—2—3: node1 & node3 each have 1 two-hop neighbor, node2 has 0
+    // In the same path, nodes 1 & 3 each see each other at distance=2; node2 sees none.
     let mut g = Graph::<usize, (), Undirected>::new_undirected();
     let n1 = g.add_node(0);
     let n2 = g.add_node(1);
