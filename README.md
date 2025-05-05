@@ -163,13 +163,11 @@ F. Usage Instructions
 bash
 Copy
 Edit
-# 1. Clone & enter
+1. Clone & enter
 cd ds210-project
-
-# 2. Run tests
+ 2. Run tests
 cargo test
-
-# 3. Full analysis (release)
+3. Full analysis (release)
 cargo run --release > analysis_output.txt 2>&1
 less analysis_output.txt
 No CLI arguments needed.
